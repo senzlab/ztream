@@ -3,10 +3,8 @@ package main
 import (
     "fmt"
     "net"
-    "bufio"
     "os"
     "strings"
-    "time"
 )
 
 type Senz struct {
@@ -23,7 +21,7 @@ var senzies = map[string]*net.UDPAddr{}
 var streams = map[int]*net.UDPAddr{}
 
 func main() {
-    addr, err := net.ResolveUDPAddr("udp", ":" + switchPort)
+    addr, err := net.ResolveUDPAddr("udp", ":" + config.switchPort)
     if err != nil {
         fmt.Println("Error udp addr:", err.Error())
         os.Exit(1)
@@ -36,7 +34,7 @@ func main() {
         os.Exit(1)
     }
 
-    fmt.Println("Listening on " + switchPort)
+    fmt.Println("Listening on " + config.switchPort)
 
     for {
         reading(conn)
