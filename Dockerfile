@@ -8,7 +8,7 @@ RUN go get gopkg.in/mgo.v2
 # env
 ENV SWITCH_MODE DEV
 ENV SWITCH_NAME senzswitch
-ENV SWITCH_PORT 7070
+ENV SWITCH_PORT 9090
 
 # copy app
 ADD . /app
@@ -17,7 +17,7 @@ WORKDIR /app
 # build
 RUN go build -o build/senz src/*.go
 
-# running on 7070
-EXPOSE 7070
+# running on 9090
+EXPOSE 9090
 
 ENTRYPOINT ["/app/docker-entrypoint.sh"]

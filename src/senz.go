@@ -62,7 +62,7 @@ func reading(conn *net.UDPConn) {
             to := senz.attr["TO"]
             senzies[from] = fAdr
 
-            // check to exists and add to streams
+            // popup streams with to
             if tAdr, ok := senzies[to]; ok {
                 streams[fAdr.Port] = tAdr
                 streams[tAdr.Port] = fAdr
