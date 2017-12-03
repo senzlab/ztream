@@ -9,15 +9,6 @@ import (
     "time"
 )
 
-type Senzie struct {
-    name        string
-    id          string
-	out         chan string
-    quit        chan bool
-    tik         *time.Ticker
-    conn        net.Conn
-}
-
 type Senz struct {
     msg         string
     ztype       string
@@ -28,10 +19,11 @@ type Senz struct {
 }
 
 // keep connected senzies
-var senzies = map[string]*Senzie{}
+var senzies = map[string]*net.UDPAddr{}
+var streams = map[int]*net.UDPAddr{}
 
 func main() {
-    addr, err := net.ResolveUDPAddr("udp",":7070")
+    addr, err := net.ResolveUDPAddr("udp", ":" + switchPort)
     if err != nil {
         fmt.Println("Error udp addr:", err.Error())
         os.Exit(1)
@@ -44,7 +36,7 @@ func main() {
         os.Exit(1)
     }
 
-    fmt.Println("Listening on " + "7070")
+    fmt.Println("Listening on " + switchPort)
 
     for {
         reading(conn)
@@ -53,58 +45,39 @@ func main() {
 
 func reading(conn *net.UDPConn) {
     buf := make([]byte, 1024)
-    n, raddr, err := conn.ReadFromUDP(buf)
-    fmt.Println("Received ", string(buf[0:n]), " from ", raddr)
+    n, fAdr, err := conn.ReadFromUDP(buf)
 
     if err != nil {
         fmt.Println("Error: ",err)
         return
     }
 
-    // further listen to addr
-    clCon, err := net.DialUDP("udp", nil, raddr)
-    if err != nil {
-        fmt.Println("Error: ",err)
-        return
-    }
+    msg := string(buf[0:n])
+    fmt.Println("Received ", msg, " from ", fAdr)
 
-    fmt.Println("listening adr")
+    if(strings.HasPrefix(msg, "DATA")) {
+        // handshake msg
+        senz := parse(msg)
+        if(senz.attr["STREAM"] == "ON") {
+            // DATA #STREAM ON #TO eranga ^lakmal digisg
+            from := senz.sender
+            to := senz.attr["TO"]
+            senzies[from] = fAdr
 
-    // reader
-    //b := make([]byte, 1024)
-    reader := bufio.NewReader(clCon)
-    msg, err := reader.ReadString(';')
-    if err != nil {
-        fmt.Println("Error: ",err)
-        return
-    }
-    println(msg)
-
-    // write
-    conn.WriteToUDP([]byte("Hello from client"), raddr)
-}
-
-func writing(senzie *Senzie)  {
-    writer := bufio.NewWriter(senzie.conn)
-
-    // write
-    WRITER:
-    for {
-        select {
-        case <- senzie.quit:
-            println("quiting/write/tick -- " + senzie.id)
-            senzie.tik.Stop()
-            break WRITER
-        case senz := <-senzie.out:
-            println("writing -- " + senzie.id)
-            println(senz)
-            writer.WriteString(senz + ";")
-            writer.Flush()
-        case <-senzie.tik.C:
-            println("ticking -- " + senzie.id)
-            writer.WriteString("TIK;")
-            writer.Flush()
+            // check to exists and add to streams
+            if tAdr, ok := senzies[to]; ok {
+                streams[fAdr.Port] = tAdr
+                streams[tAdr.Port] = fAdr
+            }
+        } else if(senz.attr["STREAM"] == "OFF") {
+            // DATA #STREAM OFF #TO eranga ^lakmal digisg
+            from := senz.sender
+            delete(senzies, from)
+            delete(streams, fAdr.Port)
         }
+    } else {
+        // this is stream forward
+        conn.WriteToUDP(buf[0:n], streams[fAdr.Port])
     }
 }
 

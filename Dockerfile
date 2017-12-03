@@ -9,8 +9,6 @@ RUN go get gopkg.in/mgo.v2
 ENV SWITCH_MODE DEV
 ENV SWITCH_NAME senzswitch
 ENV SWITCH_PORT 7070
-ENV MONGO_HOST dev.localhost
-ENV MONGO_PORT 27017
 
 # copy app
 ADD . /app
