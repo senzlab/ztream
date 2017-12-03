@@ -7,7 +7,6 @@ import (
     "os"
     "strings"
     "time"
-    "gopkg.in/mgo.v2"
 )
 
 type Senzie struct {
@@ -30,155 +29,59 @@ type Senz struct {
 
 // keep connected senzies
 var senzies = map[string]*Senzie{}
-var keyStore = &KeyStore{}
 
 func main() {
-    // listen for incoming conns
-    l, err := net.Listen("tcp", ":" + config.switchPort)
+    addr, err := net.ResolveUDPAddr("udp",":7070")
+    if err != nil {
+        fmt.Println("Error udp addr:", err.Error())
+        os.Exit(1)
+    }
+
+    // listen for incoming udp packets
+    conn, err := net.ListenUDP("udp", addr)
     if err != nil {
         fmt.Println("Error listening:", err.Error())
         os.Exit(1)
     }
 
-    // close listern on app closes
-    defer l.Close()
-
-    fmt.Println("Listening on " + config.switchPort)
-
-    // db setup
-    session, err:= mgo.Dial(config.mongoHost)
-    if err != nil {
-        fmt.Println("Error connecting mongo: ", err.Error())
-        os.Exit(1)
-    }
-
-    // close session on app closes
-    defer session.Close()
-
-    session.SetMode(mgo.Monotonic, true)
-    keyStore.session = session
+    fmt.Println("Listening on " + "7070")
 
     for {
-        // handle new connections 
-        conn, err := l.Accept()
-        if err != nil {
-            fmt.Println("Error accepting: ", err.Error())
-            os.Exit(1)
-        }
-
-        // new senzie
-        senzie := &Senzie {
-            out: make(chan string),
-            quit: make(chan bool),
-            tik: time.NewTicker(60 * time.Second),
-            conn: conn,
-        }
-
-        go reading(senzie)
-        go writing(senzie)
+        reading(conn)
     }
 }
 
-func reading(senzie *Senzie) {
-    reader := bufio.NewReader(senzie.conn)
+func reading(conn *net.UDPConn) {
+    buf := make([]byte, 1024)
+    n, raddr, err := conn.ReadFromUDP(buf)
+    fmt.Println("Received ", string(buf[0:n]), " from ", raddr)
 
-    // read senz
-    READER:
-    for {
-        msg, err := reader.ReadString(';')
-        if err != nil {
-            fmt.Println("Error reading: ", err.Error())
-
-            // take existing senzie and stop it
-            if (senzie.name != "") {
-                delete(senzies, senzie.name)
-            }
-
-            // senzie exists
-            // quit all routeins
-            senzie.quit <- true
-
-            break READER
-        }
-
-        // not handle TAK, TIK, TUK
-        if(msg == "TAK;" || msg == "TIK;" || msg == "TUK;") {
-            continue READER
-        }
-
-        // parse senz and handle it
-        senz := parse(msg)
-        if(senz.receiver == config.switchName) {
-            if(senz.ztype == "SHARE") {
-                // this is shareing pub key(registration)
-                // save pubkey in db
-                senzie.name = senz.sender
-                senzie.id = senz.attr["uid"]
-                pubkey := senz.attr["pubkey"]
-                key := keyStore.get(senzie.name)
-
-                println("SHARE pubKey to switch " + senzie.name + " " + senzie.id)
-
-                if(key.Value == "") {
-                    // not registerd senzie
-                    // save pubkey
-                    // add senzie
-                    keyStore.put(&Key{senzie.name, pubkey})
-                    senzies[senzie.name] = senzie
-
-                    // send status
-                    z := "DATA #status REG_DONE #pubkey switchkey" +
-                                " @" + senzie.name +
-                                " ^" + config.switchName +
-                                " digisig"
-                    senzie.out <- z
-                } else if(key.Value == pubkey) {
-                    // registerd senzie 
-                    // add senzie
-                    senzies[senzie.name] = senzie
-
-                    // send status
-                    z := "DATA #status REG_ALR #pubkey switchkey" +
-                                " @" + senzie.name +
-                                " ^" + config.switchName +
-                                " digisig"
-                    senzie.out <- z
-                } else {
-                    // name already obtained
-                    z := "DATA #status REG_FAIL #pubkey switchkey" +
-                                " @" + senzie.name +
-                                " ^" + config.switchName +
-                                " digisig"
-                    senzie.out <- z
-                }
-            } else if(senz.ztype == "GET") {
-                // this is requesting pub key of other senzie
-                // fing pubkey and send
-                key := keyStore.get(senz.attr["name"])
-                z := "DATA #pubkey " + key.Value +
-                            " #name " + senz.attr["name"] +
-                            " #uid " + senz.attr["uid"] +
-                            " @" + senzie.name +
-                            " ^" + config.switchName +
-                            " digisig"
-                senzie.out <- z
-            }
-        } else {
-            // senz for another senzie
-            println("SENZ for senzie " + senz.msg)
-
-            // send ack back to sender
-            z := "DATA #status RECEIVED" +
-                        " #uid " + senz.attr["uid"] +
-                        " @" + senzie.name +
-                        " ^" + config.switchName +
-                        " digisig"
-            senzie.out <- z
-
-            // forwared senz msg to receiver
-            senzies[senz.receiver].out <- senz.msg
-        }
+    if err != nil {
+        fmt.Println("Error: ",err)
+        return
     }
+
+    // further listen to addr
+    clCon, err := net.DialUDP("udp", nil, raddr)
+    if err != nil {
+        fmt.Println("Error: ",err)
+        return
+    }
+
+    fmt.Println("listening adr")
+
+    // reader
+    //b := make([]byte, 1024)
+    reader := bufio.NewReader(clCon)
+    msg, err := reader.ReadString(';')
+    if err != nil {
+        fmt.Println("Error: ",err)
+        return
+    }
+    println(msg)
+
+    // write
+    conn.WriteToUDP([]byte("Hello from client"), raddr)
 }
 
 func writing(senzie *Senzie)  {
