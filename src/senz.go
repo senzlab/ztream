@@ -42,7 +42,7 @@ func main() {
 }
 
 func reading(conn *net.UDPConn) {
-    buf := make([]byte, 1024)
+    buf := make([]byte, 512)
     n, fAdr, err := conn.ReadFromUDP(buf)
 
     if err != nil {
