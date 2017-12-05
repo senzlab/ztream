@@ -61,22 +61,20 @@ func reading(conn *net.UDPConn) {
             // send ref
             // DATA #STREAM O #TO eranga ^lakmal digisg
             from := senz.sender
+            to := senz.attr["TO"]
             sendRefs[from] = fAdr
+
+            // check weather to senzie have all send/recv refs
+            putRefs(from, to)
         } else if(senz.attr["STREAM"] == "N") {
             // recv ref
             // DATA #STREAM N #TO eranga ^lakmal digisg
             from := senz.sender
+            to := senz.attr["TO"]
             recvRefs[from] = fAdr
 
             // check weather to senzie have all send/recv refs
-            to := senz.attr["TO"]
-            if(sendRefs[to] != nil && recvRefs[to] != nil) {
-                // have all refs of from and to
-                println("have all sendRefs and recvRefs") 
-
-                streams[sendRefs[from].Port] = recvRefs[to]
-                streams[sendRefs[to].Port] = recvRefs[from]
-            }
+            putRefs(from, to)
         } else if(senz.attr["STREAM"] == "OFF") {
             // DATA #STREAM OFF #TO eranga ^lakmal digisg
             from := senz.sender
@@ -134,4 +132,15 @@ func parse(msg string)*Senz {
     }
 
     return senz
+}
+
+func putRefs(from string, to string) {
+    if(sendRefs[from] != nil && sendRefs[to] != nil && 
+        recvRefs[from] != nil && recvRefs[to] != nil) {
+        // have all refs of from and to
+        println("have all sendRefs and recvRefs") 
+
+        streams[sendRefs[from].Port] = recvRefs[to]
+        streams[sendRefs[to].Port] = recvRefs[from]
+    }
 }
