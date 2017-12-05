@@ -18,7 +18,7 @@ type Senz struct {
 
 // keep connected senzies
 var senzies = map[string]*net.UDPAddr{}
-var streams = map[string]*net.UDPAddr{}
+var streams = map[int]*net.UDPAddr{}
 
 func main() {
     addr, err := net.ResolveUDPAddr("udp", ":" + config.switchPort)
@@ -53,7 +53,7 @@ func reading(conn *net.UDPConn) {
     msg := string(buf[0:n])
     if(strings.HasPrefix(msg, "DATA")) {
         fmt.Println("Received ", msg, " from ", fAdr)
-
+        
         // handshake msg
         senz := parse(msg)
         if(senz.attr["STREAM"] == "ON") {
@@ -64,18 +64,18 @@ func reading(conn *net.UDPConn) {
 
             // popup streams with to
             if tAdr, ok := senzies[to]; ok {
-                streams[fAdr.String()] = tAdr
-                streams[tAdr.String()] = fAdr
+                streams[fAdr.Port] = tAdr
+                streams[tAdr.Port] = fAdr
             }
         } else if(senz.attr["STREAM"] == "OFF") {
             // DATA #STREAM OFF #TO eranga ^lakmal digisg
             from := senz.sender
             delete(senzies, from)
-            delete(streams, fAdr.String())
+            delete(streams, fAdr.Port)
         }
     } else {
         // this is stream forward
-        conn.WriteToUDP(buf[0:n], streams[fAdr.String()])
+        conn.WriteToUDP(buf[0:n], streams[fAdr.Port])
     }
 }
 
