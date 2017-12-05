@@ -17,7 +17,8 @@ type Senz struct {
 }
 
 // keep connected senzies
-var senzies = map[string]*net.UDPAddr{}
+var sendRefs = map[string]*net.UDPAddr{} 
+var recvRefs = map[string]*net.UDPAddr{} 
 var streams = map[int]*net.UDPAddr{}
 
 func main() {
@@ -53,24 +54,34 @@ func reading(conn *net.UDPConn) {
     msg := string(buf[0:n])
     if(strings.HasPrefix(msg, "DATA")) {
         fmt.Println("Received ", msg, " from ", fAdr)
-        
+
         // handshake msg
         senz := parse(msg)
-        if(senz.attr["STREAM"] == "ON") {
-            // DATA #STREAM ON #TO eranga ^lakmal digisg
+        if(senz.attr["STREAM"] == "O") {
+            // send ref
+            // DATA #STREAM O #TO eranga ^lakmal digisg
             from := senz.sender
-            to := senz.attr["TO"]
-            senzies[from] = fAdr
+            sendRefs[from] = fAdr
+        } else if(senz.attr["STREAM"] == "N") {
+            // recv ref
+            // DATA #STREAM N #TO eranga ^lakmal digisg
+            from := senz.sender
+            recvRefs[from] = fAdr
 
-            // popup streams with to
-            if tAdr, ok := senzies[to]; ok {
-                streams[fAdr.Port] = tAdr
-                streams[tAdr.Port] = fAdr
+            // check weather to senzie have all send/recv refs
+            to := senz.attr["TO"]
+            if(sendRefs[to] != nil && recvRefs[to] != nil) {
+                // have all refs of from and to
+                println("have all sendRefs and recvRefs") 
+
+                streams[sendRefs[from].Port] = recvRefs[to]
+                streams[sendRefs[to].Port] = recvRefs[from]
             }
         } else if(senz.attr["STREAM"] == "OFF") {
             // DATA #STREAM OFF #TO eranga ^lakmal digisg
             from := senz.sender
-            delete(senzies, from)
+            delete(sendRefs, from)
+            delete(recvRefs, from)
             delete(streams, fAdr.Port)
         }
     } else {
